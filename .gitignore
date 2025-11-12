@@ -1,0 +1,8 @@
+# Ignore venv
+venv/
+
+# Ignore melodies
+cppn_melodies/
+
+# Ignore __pycache__
+__pychace__/
