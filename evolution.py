@@ -18,8 +18,8 @@ def run_evolution():
         for i, genome in enumerate(population):
             print(f"Evaluating Genome {i+1}/{config.POPULATION_SIZE}...")
             cppn = CPPN(genome)
-            melody = play_rate_music.generate_melody(cppn)
-            genome.fitness = play_rate_music.get_human_score(melody)
+            melody = melody_generation.generate_melody(cppn)
+            genome.fitness = play_rate_music.get_human_score(i, melody)
         
         # 2. Sort by Fitness (Descending)
         population.sort(key=lambda g: g.fitness, reverse=True)

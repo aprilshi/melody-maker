@@ -1,107 +1,127 @@
 import mido
 from mido import Message, MidiFile, MidiTrack
-from IPython.display import display, Audio
 from midi2audio import FluidSynth
-
+from IPython.display import Audio, display
+import numpy as np
+import os
+import sys
+import random
 import config
 
-SOUNDFONT_PATH = "YDP-GrandPiano-20160804.sf2"
+# --- AUDIO & PATH CONFIGURATION ---
+SOUNDFONT_FILENAME = "YDP-GrandPiano-20160804.sf2"  # Using specified SoundFont path
+
+# --- MIDI Helper Functions ---
 
 def bpm_to_tempo(bpm):
-    # Convert BPM to microseconds per beat
-    return int(500000 / (bpm / 120))
-
-def save_midi_file(melody, filename="melody.mid"):
-  mid = MidiFile()
-  track = MidiTrack()
-  mid.tracks.append(track)
-  # Set to piano
-  track.append(mido.Message('program_change', program=1, time=0))
-  tempo_microseconds = bpm_to_tempo(config.TEMPO)
-  set_tempo_message = mido.MetaMessage('set_tempo', tempo=tempo_microseconds, time=0)
-  track.append(set_tempo_message)
-
-  for note in melody:
-    if note == 0:
-      track.append(Message('note_off', note=0, velocity=0, time=config.TICK_PER_STEP))
-      continue
-    track.append(Message('note_on', note=note, velocity=64, time=0))
-    track.append(Message('note_off', note=note, velocity=64, time=config.TICK_PER_STEP))
-
-  mid.save(filename)
-
-def play_midi_file(filename):
-    output_wav_path = "output.wav"
-    # Path to soundfont
-    fs = FluidSynth(sound_font = SOUNDFONT_PATH)
-    fs.midi_to_audio(filename, output_wav_path)
-    return Audio(output_wav_path)
-
-
-def get_human_score(melody_array):
     """
-    Simulates the human-in-the-loop scoring process.
-    In a real application, this is where MIDI playback would occur.
+    Converts Beats Per Minute (BPM) to microseconds per quarter note, 
+    which is the standard MIDI tempo format.
     """
+    # 60 seconds/minute * 1,000,000 microseconds/second / BPM
+    return int(60 * 1000000 / bpm)
+
+
+def save_midi_file(melody_array, filename):
+    """
+    Converts a sequence of MIDI notes into a playable MIDI file, 
+    using constants imported from the 'config' module.
+    """
+    mid = MidiFile()
+    track = MidiTrack()
+    mid.tracks.append(track)
+    
+    # 1. Set Tempo
+    tempo_microseconds = bpm_to_tempo(config.TEMPO)
+    set_tempo_message = mido.MetaMessage('set_tempo', tempo=tempo_microseconds, time=0)
+    track.append(set_tempo_message)
+
+    # 2. Set Instrument (Program Change)
+    track.append(Message('program_change', program=1, time=0)) # Using Piano
+
+    for note in melody_array:
+        note = int(note) 
+        if note != config.REST:
+            # Note On: velocity 64 (your preference)
+            track.append(Message('note_on', note=note, velocity=64, time=0))
+            # Note Off: duration is TICK_PER_STEP
+            track.append(Message('note_off', note=note, velocity=64, time=config.TICK_PER_STEP))
+        else:
+            # Rest: time delay is TICK_PER_STEP. Use a silent note_off for the duration.
+            track.append(Message('note_off', note=0, velocity=0, time=config.TICK_PER_STEP))
+
+    try:
+        mid.save(filename)
+    except Exception as e:
+        print(f"Error saving MIDI file: {e}")
+
+
+def play_melody(midi_filename, wav_filename):
+    """
+    Uses FluidSynth to convert MIDI to WAV and plays the audio via IPython.display.
+    Uses absolute path for the SoundFont
+    """
+    
+    # We find the directory where the calling script is and combine it with the filename.
+    try:
+        current_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+        soundfont_path_abs = os.path.join(current_dir, SOUNDFONT_FILENAME)
+    except IndexError:
+        # Fallback for when running directly in IPython without sys.argv[0] defined
+        soundfont_path_abs = os.path.abspath(SOUNDFONT_FILENAME)
+
+    if not os.path.exists(soundfont_path_abs):
+        print(f"\n--- FATAL ERROR: SoundFont File Not Found ---")
+        print(f"FluidSynth cannot find the SoundFont at: {soundfont_path_abs}")
+        print("Ensure 'YDP-GrandPiano-20160804.sf2' is in the current working directory.")
+        return # Skip playback and score
+        
+    # 1. Convert MIDI to WAV
+    try:
+        fs = FluidSynth(sound_font=soundfont_path_abs) 
+        fs.midi_to_audio(midi_filename, wav_filename)
+
+        # 2. Display audio player
+        print("Playing audio...")
+        display(Audio(wav_filename)) 
+
+    except FileNotFoundError:
+        print("\n--- Audio Playback Error (FluidSynth) ---")
+        print("The 'fluidsynth' executable was not found on your system PATH.")
+        print("Please ensure FluidSynth is installed and accessible.")
+        print("----------------------------\n")
+        
+    except Exception as e:
+        print(f"An unexpected error occurred during audio playback: {e}")
+
+
+def get_human_score(genome_id, melody_array):
+    """
+    Saves the melody as a MIDI file, plays it, and prompts for human-in-the-loop scoring.
+    """
+    midi_filename = f"temp_g{genome_id}.mid"
+    wav_filename = f"temp_g{genome_id}.wav"
+    
+    save_midi_file(melody_array, midi_filename) 
+
     print("\n" + "="*50)
-    print(f"🎵 Generated Melody Array (Length {len(melody_array)}):")
-    print(melody_array)
-    print("="*50)
-
-    filename = "cppn_melody_test.mid"
-    save_midi_file(melody_array, filename)
-    display(play_midi_file(filename))
-
+    print(f"🎵 Now evaluating Genome {genome_id}...")
+    print(f"Melody Notes: {melody_array[:10]}... ({len(melody_array)} total)")
+    
+    play_melody(midi_filename, wav_filename) 
+    
     score = -1
     while not 1 <= score <= 10:
         try:
-            score = int(input("Please listen to the melody and assign a score (1-10): "))
+            score = int(input("\nScore (1-10) for this melody: "))
         except ValueError:
             print("Invalid input. Please enter an integer between 1 and 10.")
             score = -1
+    
+    # Clean up temporary files
+    if os.path.exists(midi_filename):
+        os.remove(midi_filename)
+    if os.path.exists(wav_filename):
+        os.remove(wav_filename)
+
     return float(score)
-
-import numpy as np
-from cppn import CPPN
-import config
-# --- Melody Generation Function ---
-def generate_melody(cppn: CPPN, num_timesteps = config.TIME_STEPS):
-    """
-    Generates a sequence of MIDI notes (or REST=0) from the CPPN.
-
-    The output node index maps directly to:
-    [0] -> MIDI note PITCH_LOW (36)
-    ...
-    [PITCH_RANGE-1] -> MIDI note PITCH_HIGH (88)
-    [PITCH_RANGE] -> REST (0)
-    """
-    melody_array = []
-
-    # Create the mapping array: MIDI notes + REST at the end
-    # [36, 37, ..., 88, 0] where 0 is the REST
-    pitch_map = list(range(config.PITCH_LOW, config.PITCH_HIGH + 1)) + [config.REST]
-
-    # Map the timestep [0, num_timesteps-1] to a normalized input range [-1, 1]
-    # This range is arbitrary but common for CPPNs
-    time_points = np.linspace(-1, 1, num_timesteps)
-
-    for t_norm in time_points:
-        # Get preference vector (length 54)
-        pitch_preferences = cppn.forward_pass(t_norm)
-
-        # Apply Softmax to convert raw preferences into a probability distribution
-        # The probability distribution is what allows us to "pick the highest probability"
-        # We add a small epsilon (1e-6) for numerical stability
-        exp_preferences = np.exp(pitch_preferences - np.max(pitch_preferences))
-        probabilities = exp_preferences / (np.sum(exp_preferences) + 1e-6)
-
-        # Selection: Pick the index with the highest probability
-        # This index [0 to 53] directly corresponds to an entry in pitch_map
-        selected_index = np.argmax(probabilities)
-
-        # Map the selected index to the actual MIDI note or REST value
-        selected_note = pitch_map[selected_index]
-
-        melody_array.append(selected_note)
-
-    return np.array(melody_array)

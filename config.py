@@ -18,7 +18,7 @@ TEMPO = 60             # BPM
 NUM_HIDDEN_NODES = 8
 
 # GA Parameters
-POPULATION_SIZE = 50
+POPULATION_SIZE = 6
 NUM_GENERATIONS = 10
 NUM_PARENTS_TO_KEEP = 10  # Elitism: how many top genomes survive untouched
 P_MUTATE_WEIGHT = 0.8     # Probability of a weight being mutated
