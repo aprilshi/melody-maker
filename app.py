@@ -10,11 +10,11 @@ import config
 from cppn import CPPN
 from genome import Genome, crossover_genomes, mutate_genome
 from melody_generation import generate_melody
-from play_rate_music import save_midi_file, 
+from play_rate_music import save_midi_file
 
 SOUNDFONT_FILENAME = "Sonatina_Symphonic_Orchestra.sf2"
 
-# TODO: FIX THIS! And also maybe add an instrument selection
+# TODO: Add instrument selection?
 
 # --- Setup Page ---
 st.set_page_config(page_title="Evolutionary Melody Maker", layout="wide")
@@ -23,14 +23,6 @@ st.title("Evolutionary Melody Maker")
 # --- Helper Functions ---
 
 def convert_midi_to_wav_custom(midi_path, wav_path, soundfont_path):
-    """
-    Directly calls FluidSynth with the correct flag order to prevent
-    playback and ensure file generation.
-    """
-    # Command structure: fluidsynth -ni -F {wav} {sf2} {mid}
-    # -ni: No interactive mode (don't run a shell)
-    # -F: Render to file (Output)
-    # -g: Gain (volume, optional)
     command = [
         'fluidsynth',
         '-ni',
@@ -40,16 +32,11 @@ def convert_midi_to_wav_custom(midi_path, wav_path, soundfont_path):
         midi_path              # Input MIDI
     ]
     
-    # Run the command, suppressing standard output so it doesn't clutter the terminal
+    # suppressing standard output so it doesn't clutter the terminal
     subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def ensure_audio_file(genome_id, melody_array):
-    """
-    Generates MIDI and WAV files for a specific genome.
-    Returns the path to the WAV file for playback.
-    """
-    # Use absolute paths to avoid any directory confusion
     current_dir = os.getcwd()
     midi_filename = os.path.join(current_dir, f"gen_midi_{genome_id}.mid")
     wav_filename = os.path.join(current_dir, f"gen_audio_{genome_id}.wav")
@@ -130,7 +117,7 @@ with st.form("selection_form"):
             else:
                 st.warning("Audio unavailable (Conversion Failed)")
             
-            if st.checkbox(f"Keep Melody #{i+1}", key=f"select_{i}"):
+            if st.checkbox(f"Keep Melody #{i+1}", key=f"select_{st.session_state.generation}_{i}"):
                 selected_indices.append(i)
             
             st.markdown("---")
@@ -156,7 +143,9 @@ with st.form("selection_form"):
                     child = crossover_genomes(parent1, parent2)
                     child = mutate_genome(child)
                     next_population.append(child)
-                
+                cleanup_files(st.session_state.temp_files)
+                st.session_state.temp_files = []
+
                 st.session_state.population = next_population
                 st.session_state.generation += 1
                 st.experimental_rerun()

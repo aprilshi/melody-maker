@@ -24,8 +24,8 @@ class Genome:
 
     def randomize(self):
         """Initializes all parameters randomly."""
-        # Weights and biases are initialized with small random numbers
-        scale = 0.5
+        # Weights and biases, initialized with small random numbers
+        scale = config.WEIGHT_SCALE
         self.weights_in_to_hidden = np.random.randn(1, config.NUM_HIDDEN_NODES) * scale
         self.biases_hidden = np.random.randn(1, config.NUM_HIDDEN_NODES) * scale
         self.weights_hidden_to_out = np.random.randn(config.NUM_HIDDEN_NODES, config.TOTAL_OUTPUTS) * scale

@@ -6,7 +6,7 @@ class CPPN:
     def __init__(self, genome):
         self.num_inputs = 1
         self.num_hidden = config.NUM_HIDDEN_NODES
-        self.num_outputs = config.TOTAL_OUTPUTS
+        self.num_outputs = len(config.PITCH_MAP)
 
         # load genetic material from Genome
         self.weights_in_to_hidden = genome.weights_in_to_hidden
@@ -30,7 +30,7 @@ class CPPN:
         output_input = np.dot(hidden_output, self.weights_hidden_to_out) + self.biases_output
         raw_output = np.zeros_like(output_input)
         for i in range(self.num_outputs):
-            # Here we apply the chosen activation function
+            # apply the chosen activation function
             raw_output[0, i] = self.output_activations[i](output_input[0, i])
 
         return raw_output.flatten()
