@@ -23,10 +23,6 @@ def bpm_to_tempo(bpm):
 
 
 def save_midi_file(melody_array, filename):
-    """
-    Converts a sequence of MIDI notes into a playable MIDI file, 
-    using constants imported from the 'config' module.
-    """
     mid = MidiFile()
     track = MidiTrack()
     mid.tracks.append(track)
@@ -37,23 +33,48 @@ def save_midi_file(melody_array, filename):
     track.append(set_tempo_message)
 
     # 2. Set Instrument (Program Change)
-    track.append(Message('program_change', program=1, time=0)) # Using Piano
+    track.append(Message('program_change', program=0, time=0)) 
+    
+    if len(melody_array) == 0:
+        mid.save(filename)
+        return
 
-    for note in melody_array:
-        note = int(note) 
-        if note != config.REST:
-            # Note On: velocity 64 (your preference)
-            track.append(Message('note_on', note=note, velocity=64, time=0))
-            # Note Off: duration is TICK_PER_STEP
-            track.append(Message('note_off', note=note, velocity=64, time=config.TICK_PER_STEP))
+    # Initialize state with the first note
+    current_note = int(melody_array[0])
+    current_duration = config.TICK_PER_STEP
+
+    # Start the first note
+    if current_note != config.REST:
+        track.append(Message('note_on', note=current_note, velocity=80, time=0))
+
+    # Loop starting from the second note to the end
+    for i in range(1, len(melody_array)):
+        next_note = int(melody_array[i])
+
+        if next_note == current_note:
+            current_duration += config.TICK_PER_STEP
         else:
-            # Rest: time delay is TICK_PER_STEP. Use a silent note_off for the duration.
-            track.append(Message('note_off', note=0, velocity=0, time=config.TICK_PER_STEP))
+            if current_note != config.REST:
+                track.append(Message('note_off', note=current_note, velocity=80, time=current_duration))
+            else:
+                track.append(Message('note_off', note=0, velocity=0, time=current_duration))
+
+            if next_note != config.REST:
+                track.append(Message('note_on', note=next_note, velocity=80, time=0))
+            
+            current_note = next_note
+            current_duration = config.TICK_PER_STEP
+
+    if current_note != config.REST:
+        track.append(Message('note_off', note=current_note, velocity=80, time=current_duration))
+    else:
+        track.append(Message('note_off', note=0, velocity=0, time=current_duration))
 
     try:
         mid.save(filename)
     except Exception as e:
         print(f"Error saving MIDI file: {e}")
+
 
 
 def play_melody(midi_filename, wav_filename):
@@ -62,18 +83,16 @@ def play_melody(midi_filename, wav_filename):
     Uses absolute path for the SoundFont
     """
     
-    # We find the directory where the calling script is and combine it with the filename.
     try:
         current_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
         soundfont_path_abs = os.path.join(current_dir, SOUNDFONT_FILENAME)
     except IndexError:
-        # Fallback for when running directly in IPython without sys.argv[0] defined
         soundfont_path_abs = os.path.abspath(SOUNDFONT_FILENAME)
 
     if not os.path.exists(soundfont_path_abs):
         print(f"\n--- FATAL ERROR: SoundFont File Not Found ---")
         print(f"FluidSynth cannot find the SoundFont at: {soundfont_path_abs}")
-        print("Ensure 'YDP-GrandPiano-20160804.sf2' is in the current working directory.")
+        print(f"Ensure {SOUNDFONT_FILENAME} is in the current working directory.")
         return # Skip playback and score
         
     # 1. Convert MIDI to WAV
