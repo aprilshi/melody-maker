@@ -12,13 +12,34 @@ from genome import Genome, crossover_genomes, mutate_genome
 from melody_generation import generate_melody
 from play_rate_music import save_midi_file
 
-SOUNDFONT_FILENAME = "Sonatina_Symphonic_Orchestra.sf2"
+import matplotlib.pyplot as plt
+
+def display_piano_roll(melody_array):
+    """Generates a piano roll plot for the Streamlit UI."""
+    fig, ax = plt.subplots(figsize=(10, 3))
+    
+    # Filter out rests (0) for the plot
+    times = [t for t, pitch in enumerate(melody_array) if pitch != 0]
+    pitches = [pitch for pitch in melody_array if pitch != 0]
+    
+    ax.scatter(times, pitches, marker='s', s=100, color='#1f77b4')
+    
+    ax.set_ylim(min(config.PITCH_MAP[0:-1]) - 1, max(config.PITCH_MAP[0:-1]) + 1)
+    ax.set_xlim(-0.5, config.TIME_STEPS - 0.5)
+    ax.set_xlabel("Time Step")
+    ax.set_ylabel("MIDI Pitch")
+    ax.set_title("Melody Visualization")
+    ax.grid(True, which='both', linestyle='--', alpha=0.5)
+    
+    return fig
+
+SOUNDFONT_FILENAME = "FluidR3_GM.sf2"
 
 # TODO: Add instrument selection?
 
 # --- Setup Page ---
-st.set_page_config(page_title="Evolutionary Melody Maker", layout="wide")
-st.title("Evolutionary Melody Maker")
+st.set_page_config(page_title="Melody Breeder", layout="wide")
+st.title("Melody Breeder")
 
 # --- Helper Functions ---
 
@@ -105,6 +126,7 @@ with st.form("selection_form"):
             
             cppn = CPPN(genome)
             melody = generate_melody(cppn)
+            # print(f"generation {st.session_state.generation} melody #{i+1}: {melody}")
             
             wav_path, midi_path = ensure_audio_file(f"g{st.session_state.generation}_p{i}", melody)
             
@@ -119,8 +141,12 @@ with st.form("selection_form"):
             
             if st.checkbox(f"Keep Melody #{i+1}", key=f"select_{st.session_state.generation}_{i}"):
                 selected_indices.append(i)
-            
+
+            # 2. Display Piano Roll (Visual Display)
+            fig = display_piano_roll(melody)
+            st.pyplot(fig)
             st.markdown("---")
+            
 
     submitted = st.form_submit_button("Evolve Next Generation")
 

@@ -1,125 +1,90 @@
 import numpy as np
 import config
 import random
+import copy
 
-# --- Genome Class ---
+class ConnectionGene:
+    def __init__(self, in_node, out_node, weight, innovation):
+        self.in_node = in_node
+        self.out_node = out_node
+        self.weight = weight
+        self.enabled = True
+        self.innovation = innovation
+
+class NodeGene:
+    def __init__(self, id, node_type, activation_func):
+        self.id = id
+        self.type = node_type # 'input', 'output', or 'hidden'
+        self.activation = activation_func
+
 class Genome:
-    """
-    Contains the evolvable parameters of a single CPPN.
-    """
     def __init__(self, is_random=True):
         self.fitness = 0.0
+        self.nodes = {} 
+        self.connections = {} 
+        self.next_node_id = 0
+        self.innovation_counter = 0
 
-        # Genotype components (weights, biases, and activation functions)
         if is_random:
-            self.randomize()
-        else:
-            # Placeholder for child genome initialization
-            self.weights_in_to_hidden = None
-            self.weights_hidden_to_out = None
-            self.biases_hidden = None
-            self.biases_output = None
-            self.hidden_activations = None
-            self.output_activations = None
+            self.initialize_base_structure()
 
-    def randomize(self):
-        """Initializes all parameters randomly."""
-        # Weights and biases, initialized with small random numbers
-        scale = config.WEIGHT_SCALE
-        self.weights_in_to_hidden = np.random.randn(1, config.NUM_HIDDEN_NODES) * scale
-        self.biases_hidden = np.random.randn(1, config.NUM_HIDDEN_NODES) * scale
-        self.weights_hidden_to_out = np.random.randn(config.NUM_HIDDEN_NODES, config.TOTAL_OUTPUTS) * scale
-        self.biases_output = np.random.randn(1, config.TOTAL_OUTPUTS) * scale
+    def initialize_base_structure(self):
+        # Input 0: Time
+        self.add_node('input', id=0)
+        # Input 1: Bias (Crucial for preventing flatlines)
+        self.add_node('input', id=1)
+        
+        # Outputs: 1 per pitch in PITCH_MAP
+        # Start IDs from 2 to avoid overlap with inputs 0 and 1
+        for i in range(len(config.PITCH_MAP)):
+            out_id = i + 2
+            self.add_node('output', id=out_id)
+            # Connect both Time and Bias to the outputs
+            self.add_connection(0, out_id)
+            self.add_connection(1, out_id)
 
-        # Activation functions are chosen randomly
-        self.hidden_activations = np.random.choice(config.ACTIVATION_CHOICES, config.NUM_HIDDEN_NODES, replace=True)
-        self.output_activations = np.random.choice(config.ACTIVATION_CHOICES, config.TOTAL_OUTPUTS, replace=True)
+    def add_node(self, node_type, id=None):
+        if id is None: id = self.next_node_id
+        activation = random.choice(config.ACTIVATION_CHOICES)
+        self.nodes[id] = NodeGene(id, node_type, activation)
+        self.next_node_id = max(self.next_node_id, id + 1)
+        return id
+
+    def add_connection(self, in_id, out_id):
+        weight = np.random.randn() * config.WEIGHT_SCALE
+        innov = self.innovation_counter
+        self.connections[(in_id, out_id)] = ConnectionGene(in_id, out_id, weight, innov)
+        self.innovation_counter += 1
 
     def clone(self):
-        """Creates an identical copy of the genome."""
-        new_genome = Genome(is_random=False)
-        new_genome.weights_in_to_hidden = self.weights_in_to_hidden.copy()
-        new_genome.weights_hidden_to_out = self.weights_hidden_to_out.copy()
-        new_genome.biases_hidden = self.biases_hidden.copy()
-        new_genome.biases_output = self.biases_output.copy()
-        new_genome.hidden_activations = self.hidden_activations.copy()
-        new_genome.output_activations = self.output_activations.copy()
-        new_genome.fitness = self.fitness
-        return new_genome
-    
-# --- Genome Operators ---
+        return copy.deepcopy(self)
 
-# Crossover
-def crossover_genomes(parent1: Genome, parent2: Genome):
-    """
-    Performs Uniform Crossover on two parent genomes.
-    For each parameter, randomly selects the value from Parent1 or Parent2.
-    """
-    # Ensure parent1 is the fitter parent (Elitism in crossover)
-    if parent2.fitness > parent1.fitness:
-        parent1, parent2 = parent2, parent1
-
-    child = Genome(is_random=False)
-    
-    # Helper to perform uniform crossover on NumPy arrays
-    def uniform_crossover_array(arr1, arr2):
-        mask = np.random.rand(*arr1.shape) < 0.5
-        child_arr = np.where(mask, arr1, arr2)
-        # For simplicity, we choose randomly, rather than always from the fitter parent
-        return child_arr
-
-    # Helper to perform uniform crossover on Activation arrays (function objects)
-    def uniform_crossover_activations(act1, act2):
-        child_act = []
-        for a1, a2 in zip(act1, act2):
-            child_act.append(a1 if random.random() < 0.5 else a2)
-        return np.array(child_act)
-
-    # Crossover all weight/bias arrays
-    child.weights_in_to_hidden = uniform_crossover_array(parent1.weights_in_to_hidden, parent2.weights_in_to_hidden)
-    child.weights_hidden_to_out = uniform_crossover_array(parent1.weights_hidden_to_out, parent2.weights_hidden_to_out)
-    child.biases_hidden = uniform_crossover_array(parent1.biases_hidden, parent2.biases_hidden)
-    child.biases_output = uniform_crossover_array(parent1.biases_output, parent2.biases_output)
-
-    # Crossover activation arrays
-    child.hidden_activations = uniform_crossover_activations(parent1.hidden_activations, parent2.hidden_activations)
-    child.output_activations = uniform_crossover_activations(parent1.output_activations, parent2.output_activations)
-
-    return child
-
-# Mutation
 def mutate_genome(genome: Genome):
-    """
-    Applies two types of mutation: weight adjustment and activation swap.
-    """
     # 1. Weight Mutation
-    def mutate_array(arr):
-        mutation_mask = np.random.rand(*arr.shape) < config.P_MUTATE_WEIGHT
-        
-        # Perturbation (Small adjustment for most mutations)
-        perturbation = np.random.normal(0, config.WEIGHT_PERTURB_STRENGTH, arr.shape)
-        arr[mutation_mask] += perturbation[mutation_mask]
-        
-        # Total reset (Randomly reassign a few weights completely)
-        reset_mask = np.random.rand(*arr.shape) < 0.05 # 5% chance of reset if selected for mutation
-        arr[reset_mask] = np.random.randn(np.sum(reset_mask)) * 0.5
-        return arr
+    for conn in genome.connections.values():
+        if random.random() < config.P_MUTATE_WEIGHT:
+            conn.weight += np.random.normal(0, config.WEIGHT_PERTURB_STRENGTH)
 
-    genome.weights_in_to_hidden = mutate_array(genome.weights_in_to_hidden)
-    genome.weights_hidden_to_out = mutate_array(genome.weights_hidden_to_out)
-    genome.biases_hidden = mutate_array(genome.biases_hidden)
-    genome.biases_output = mutate_array(genome.biases_output)
+    # 2. Add Node (Structural)
+    if random.random() < config.P_ADD_NODE and genome.connections:
+        conn = random.choice(list(genome.connections.values()))
+        conn.enabled = False
+        new_id = genome.add_node('hidden')
+        genome.add_connection(conn.in_node, new_id)
+        genome.add_connection(new_id, conn.out_node)
 
-    # 2. Activation Mutation (Function Swap)
-    def mutate_activations(act_array):
-        for i in range(len(act_array)):
-            if random.random() < config.P_MUTATE_ACTIVATION:
-                # Select a new function randomly from the choices
-                new_func = random.choice(config.ACTIVATION_CHOICES)
-                act_array[i] = new_func
-        return act_array
-
-    genome.hidden_activations = mutate_activations(genome.hidden_activations)
-    genome.output_activations = mutate_activations(genome.output_activations)
-    
+    # 3. Add Connection (Structural)
+    if random.random() < config.P_ADD_CONN:
+        nodes = list(genome.nodes.keys())
+        in_id, out_id = random.sample(nodes, 2)
+        if genome.nodes[out_id].type != 'input' and (in_id, out_id) not in genome.connections:
+            genome.add_connection(in_id, out_id)
     return genome
+
+def crossover_genomes(p1: Genome, p2: Genome):
+    if p2.fitness > p1.fitness: p1, p2 = p2, p1
+    child = p1.clone()
+    for key, conn2 in p2.connections.items():
+        if key in child.connections and random.random() < 0.5:
+            child.connections[key].weight = conn2.weight
+    return child
