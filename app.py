@@ -33,7 +33,7 @@ def display_piano_roll(melody_array):
     
     return fig
 
-SOUNDFONT_FILENAME = "FluidR3_GM.sf2"
+SOUNDFONT_FILENAME = "TimGM6mb.sf2"
 
 # TODO: Add instrument selection?
 
