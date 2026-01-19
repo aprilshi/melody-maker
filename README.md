@@ -1,6 +1,9 @@
 # melody-maker
 Picbreeder but for simple melodies. Options for direct encoding and using HyperNEAT to evolve CPPN
 
+## WE ARE LIVE!
+Go to this link: https://melody-breeder.streamlit.app to interact with the Melody Breeder! Or, to host locally, follow the instructions below.
+
 ## Usage
 ### 1. Create the environment ('venv')
 ```

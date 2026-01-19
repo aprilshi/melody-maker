@@ -14,6 +14,8 @@ from play_rate_music import save_midi_file
 
 import matplotlib.pyplot as plt
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 def display_piano_roll(melody_array):
     """Generates a piano roll plot for the Streamlit UI."""
     fig, ax = plt.subplots(figsize=(10, 3))
@@ -58,9 +60,8 @@ def convert_midi_to_wav_custom(midi_path, wav_path, soundfont_path):
 
 
 def ensure_audio_file(genome_id, melody_array):
-    current_dir = os.getcwd()
-    midi_filename = os.path.join(current_dir, f"gen_midi_{genome_id}.mid")
-    wav_filename = os.path.join(current_dir, f"gen_audio_{genome_id}.wav")
+    midi_filename = os.path.join(BASE_DIR, f"gen_midi_{genome_id}.mid")
+    wav_filename = os.path.join(BASE_DIR, f"gen_audio_{genome_id}.wav")
     
     # 1. Create MIDI
     try:
@@ -70,7 +71,7 @@ def ensure_audio_file(genome_id, melody_array):
         return None, None
 
     # 2. Convert to WAV
-    soundfont_abs = os.path.abspath(SOUNDFONT_FILENAME)
+    soundfont_abs = os.path.join(BASE_DIR, SOUNDFONT_FILENAME)
     
     if not os.path.exists(soundfont_abs):
         st.error(f"🚨 SoundFont not found at: `{soundfont_abs}`. Please check your file.")
@@ -138,13 +139,14 @@ with st.form("selection_form"):
                 st.audio(wav_path, format='audio/wav')
             else:
                 st.warning("Audio unavailable (Conversion Failed)")
-            
-            if st.checkbox(f"Keep Melody #{i+1}", key=f"select_{st.session_state.generation}_{i}"):
-                selected_indices.append(i)
 
+            
             # 2. Display Piano Roll (Visual Display)
             fig = display_piano_roll(melody)
             st.pyplot(fig)
+            
+            if st.checkbox(f"Keep Melody #{i+1}", key=f"select_{st.session_state.generation}_{i}"):
+                selected_indices.append(i)
             st.markdown("---")
             
 
