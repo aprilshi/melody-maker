@@ -95,7 +95,7 @@ def ensure_audio_file(genome_id, melody_array):
 
 # --- UI Initialization ---
 st.set_page_config(page_title="Melody Breeder", layout="wide")
-st.title("Melody Breeder")
+st.title(":musical_keyboard: Melody Breeder")
 
 if 'population' not in st.session_state:
     st.session_state.population = [Genome() for _ in range(config.POPULATION_SIZE)]
