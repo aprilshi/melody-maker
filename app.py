@@ -24,7 +24,6 @@ from play_rate_music import save_midi_file
 
 # --- Setup Paths & Constants ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# Ensure this matches your file or system path
 SOUNDFONT_FILENAME = os.path.join(BASE_DIR, "TimGM6mb.sf2")
 
 # --- Helper Functions ---
@@ -130,7 +129,7 @@ for i, genome in enumerate(st.session_state.population):
         # Plotting
         st.pyplot(display_piano_roll(melody))
 
-        # DOWNLOAD BUTTONS (Now valid because they are outside st.form)
+        # DOWNLOAD BUTTON
         if midi_path and os.path.exists(midi_path):
             with open(midi_path, "rb") as f:
                 st.download_button(
@@ -146,7 +145,6 @@ for i, genome in enumerate(st.session_state.population):
 with st.form("selection_form"):
     st.write("### Select parents for the next generation")
     
-    # We use columns to display checkboxes neatly
     check_cols = st.columns(config.POPULATION_SIZE)
     selected_indices = []
     

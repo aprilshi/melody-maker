@@ -11,7 +11,7 @@ class CPPN:
         self.cache = {0: normalized_t, 1: 1.0} 
         outputs = []
         
-        # Ensure we only grab nodes marked as 'output'
+        # Only grab nodes marked as 'output'
         output_ids = [n.id for n in self.genome.nodes.values() if n.type == 'output']
         
         for out_id in sorted(output_ids):
@@ -27,7 +27,6 @@ class CPPN:
             if out_id == node_id and conn.enabled:
                 incoming_sum += self.compute_node(in_id) * conn.weight
         
-        # FIXED: Call activation directly
         result = node.activation(incoming_sum)
         self.cache[node_id] = result
         return result

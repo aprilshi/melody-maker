@@ -31,7 +31,7 @@ class Genome:
     def initialize_base_structure(self):
         # Input 0: Time
         self.add_node('input', id=0)
-        # Input 1: Bias (Crucial for preventing flatlines)
+        # Input 1: Bias
         self.add_node('input', id=1)
         
         # Outputs: 1 per pitch in PITCH_MAP
@@ -65,7 +65,7 @@ def mutate_genome(genome: Genome):
         if random.random() < config.P_MUTATE_WEIGHT:
             conn.weight += np.random.normal(0, config.WEIGHT_PERTURB_STRENGTH)
 
-    # 2. Add Node (Structural)
+    # 2. Add Node
     if random.random() < config.P_ADD_NODE and genome.connections:
         conn = random.choice(list(genome.connections.values()))
         conn.enabled = False
@@ -73,7 +73,7 @@ def mutate_genome(genome: Genome):
         genome.add_connection(conn.in_node, new_id)
         genome.add_connection(new_id, conn.out_node)
 
-    # 3. Add Connection (Structural)
+    # 3. Add Connection
     if random.random() < config.P_ADD_CONN:
         nodes = list(genome.nodes.keys())
         in_id, out_id = random.sample(nodes, 2)
