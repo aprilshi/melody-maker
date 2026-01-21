@@ -22,13 +22,13 @@ def bpm_to_tempo(bpm):
     return int(60 * 1000000 / bpm)
 
 
-def save_midi_file(melody_array, filename):
+def save_midi_file(melody_array, filename, tempo = config.TEMPO):
     mid = MidiFile()
     track = MidiTrack()
     mid.tracks.append(track)
     
     # 1. Set Tempo
-    tempo_microseconds = bpm_to_tempo(config.TEMPO)
+    tempo_microseconds = bpm_to_tempo(tempo)
     set_tempo_message = mido.MetaMessage('set_tempo', tempo=tempo_microseconds, time=0)
     track.append(set_tempo_message)
 

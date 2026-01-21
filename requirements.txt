@@ -4,3 +4,4 @@ ipython
 midi2audio
 streamlit<1.27.0
 matplotlib
+networkx

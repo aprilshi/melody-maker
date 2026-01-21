@@ -21,6 +21,66 @@ from cppn import CPPN
 from genome import Genome, crossover_genomes, mutate_genome
 from melody_generation import generate_melody
 from play_rate_music import save_midi_file
+import networkx as nx
+import matplotlib.patches as mpatches
+
+def draw_neural_network(genome):
+    """Generates a graph visualization with a color-coded legend and activation labels."""
+    G = nx.DiGraph()
+    
+    # Define colors
+    color_input = '#4caf50'  # Green
+    color_hidden = '#2196f3' # Blue
+    color_output = '#f44336' # Red
+
+    node_colors = []
+    node_labels = {}
+
+    for node_id, node in genome.nodes.items():
+        G.add_node(node_id)
+        # Add labels to show activation functions (e.g., 'sin', 'tanh')
+        # Using .__name__ gets the function name for display
+        label = f"{node_id}\n({node.activation.__name__})" if node.type == 'hidden' else str(node_id)
+        node_labels[node_id] = label
+        
+        if node.type == 'input':
+            node_colors.append(color_input)
+            G.nodes[node_id]['layer'] = 0
+        elif node.type == 'output':
+            node_colors.append(color_output)
+            G.nodes[node_id]['layer'] = 2
+        else:
+            node_colors.append(color_hidden)
+            G.nodes[node_id]['layer'] = 1
+
+    for (in_id, out_id), conn in genome.connections.items():
+        if conn.enabled:
+            # Scale edge thickness by weight
+            G.add_edge(in_id, out_id, weight=abs(conn.weight) * 2)
+
+    pos = nx.multipartite_layout(G, subset_key="layer")
+    
+    fig, ax = plt.subplots(figsize=(8, 6))
+    
+    # Draw the edges first
+    weights = [G[u][v]['weight'] for u, v in G.edges()]
+    nx.draw_networkx_edges(G, pos, ax=ax, width=weights, edge_color='gray', alpha=0.5)
+    
+    # Draw nodes and labels
+    nx.draw_networkx_nodes(G, pos, ax=ax, node_color=node_colors, node_size=800)
+    nx.draw_networkx_labels(G, pos, labels=node_labels, ax=ax, font_size=8)
+
+    # Create the legend
+    legend_patches = [
+        mpatches.Patch(color=color_input, label='Input (Time/Bias)'),
+        mpatches.Patch(color=color_hidden, label='Hidden (Processing)'),
+        mpatches.Patch(color=color_output, label='Output (Pitches)')
+    ]
+    ax.legend(handles=legend_patches, loc='upper left', bbox_to_anchor=(1, 1))
+    
+    ax.set_title(f"Gen {st.session_state.generation} - Neural Topology")
+    plt.tight_layout()
+    return fig
 
 # --- Setup Paths & Constants ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -72,7 +132,7 @@ def convert_midi_to_wav(midi_path, wav_path):
     ]
     subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-def ensure_audio_file(genome_id, melody_array):
+def ensure_audio_file(genome_id, melody_array, tempo = config.TEMPO):
     """Generates unique MIDI/WAV files in session directory."""
     session_dir = get_session_dir()
     midi_filename = os.path.join(session_dir, f"gen_{genome_id}.mid")
@@ -82,7 +142,7 @@ def ensure_audio_file(genome_id, melody_array):
         st.error(f"🚨 SoundFont not found: `{SOUNDFONT_FILENAME}`")
         return None, None
 
-    save_midi_file(melody_array, midi_filename)
+    save_midi_file(melody_array, midi_filename, tempo=tempo)
     if not os.path.exists(wav_filename):
         try:
             convert_midi_to_wav(midi_filename, wav_filename)
@@ -93,8 +153,33 @@ def ensure_audio_file(genome_id, melody_array):
     return wav_filename, midi_filename
 
 # --- UI Initialization ---
+
+
 st.set_page_config(page_title="Melody Breeder", layout="wide")
 st.title(":musical_keyboard: Melody Breeder")
+
+st.sidebar.header("Evolution Settings")
+st.sidebar.info("Will be applied to the next evolution.")
+
+# 1. Structural Mutation Probabilities
+p_add_node = st.sidebar.slider("Prob: Add Node", 0.0, 0.5, 0.05, help="Chance to add a new hidden neuron.")
+p_add_conn = st.sidebar.slider("Prob: Add Connection", 0.0, 0.5, 0.10, help="Chance to bridge two existing neurons.")
+
+# 2. Weight Mutation Settings
+p_mutate_weight = st.sidebar.slider("Prob: Mutate Weight", 0.0, 1.0, 0.30)
+weight_perturb = st.sidebar.slider("Weight Perturbation Strength", 0.01, 0.5, 0.05)
+
+st.sidebar.markdown("---")
+
+# Store these in a dictionary to pass around easily
+current_config = {
+    "P_ADD_NODE": p_add_node,
+    "P_ADD_CONN": p_add_conn,
+    "P_MUTATE_WEIGHT": p_mutate_weight,
+    "WEIGHT_PERTURB": weight_perturb,
+}
+
+# TODO: Let user mess with configs but perhaps apply resets evolution
 
 if 'population' not in st.session_state:
     st.session_state.population = [Genome() for _ in range(config.POPULATION_SIZE)]
@@ -119,15 +204,22 @@ for i, genome in enumerate(st.session_state.population):
         
         # Generate melody logic
         cppn = CPPN(genome)
+        # Inside the display loop
         melody = generate_melody(cppn)
-        
         wav_path, midi_path = ensure_audio_file(f"g{st.session_state.generation}_p{i}", melody)
         
         if wav_path and os.path.exists(wav_path):
             st.audio(wav_path, format='audio/wav')
         
         # Plotting
-        st.pyplot(display_piano_roll(melody))
+        with st.expander("View Pitch Plot", expanded = True):
+            st.pyplot(display_piano_roll(melody))
+
+        # neural network map
+        with st.expander("View Neural Network Diagram"):
+            st.write("This diagram shows the evolved connections between the 'Time' and 'Bias' inputs and the 'Pitch' outputs.")
+            net_fig = draw_neural_network(genome)
+            st.pyplot(net_fig)
 
         # DOWNLOAD BUTTON
         if midi_path and os.path.exists(midi_path):
@@ -139,6 +231,7 @@ for i, genome in enumerate(st.session_state.population):
                     mime="audio/midi",
                     key=f"dl_{st.session_state.generation}_{i}"
                 )
+
         st.markdown("---")
 
 # --- 2. SELECTION SECTION (Inside Form) ---
@@ -171,7 +264,14 @@ with st.form("selection_form"):
                 while len(next_population) < config.POPULATION_SIZE:
                     p1, p2 = random.choice(parents), random.choice(parents)
                     child = crossover_genomes(p1, p2)
-                    next_population.append(mutate_genome(child))
+                    child = mutate_genome(
+                        child, 
+                        p_node=current_config["P_ADD_NODE"], 
+                        p_conn=current_config["P_ADD_CONN"],
+                        p_weight=current_config["P_MUTATE_WEIGHT"],
+                        perturbation=current_config["WEIGHT_PERTURB"]
+                    )
+                    next_population.append(child)
 
                 cleanup_session_files() # Clear disk space
                 st.session_state.population = next_population

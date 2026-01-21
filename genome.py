@@ -59,14 +59,14 @@ class Genome:
     def clone(self):
         return copy.deepcopy(self)
 
-def mutate_genome(genome: Genome):
+def mutate_genome(genome: Genome, p_node=0.05, p_conn=0.10, p_weight=0.30, perturbation=0.05):
     # 1. Weight Mutation
     for conn in genome.connections.values():
-        if random.random() < config.P_MUTATE_WEIGHT:
-            conn.weight += np.random.normal(0, config.WEIGHT_PERTURB_STRENGTH)
+        if random.random() < p_weight:
+            conn.weight += np.random.normal(0, perturbation)
 
     # 2. Add Node
-    if random.random() < config.P_ADD_NODE and genome.connections:
+    if random.random() < p_node and genome.connections:
         conn = random.choice(list(genome.connections.values()))
         conn.enabled = False
         new_id = genome.add_node('hidden')
@@ -74,7 +74,7 @@ def mutate_genome(genome: Genome):
         genome.add_connection(new_id, conn.out_node)
 
     # 3. Add Connection
-    if random.random() < config.P_ADD_CONN:
+    if random.random() < p_conn:
         nodes = list(genome.nodes.keys())
         in_id, out_id = random.sample(nodes, 2)
         if genome.nodes[out_id].type != 'input' and (in_id, out_id) not in genome.connections:
